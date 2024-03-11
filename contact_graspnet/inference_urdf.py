@@ -11,6 +11,7 @@ import re
 
 import tensorflow.compat.v1 as tf
 from urdf_models import models_data
+import h5py
 
 tf.disable_eager_execution()
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
@@ -59,6 +60,7 @@ def inference(global_config, checkpoint_dir, input_paths, K=None, local_regions=
     os.makedirs('results', exist_ok=True)
 
     # Process example test scenes
+    grasp = {}
     for p in glob.glob(input_paths):
         print('Loading ', p)
 
@@ -69,15 +71,18 @@ def inference(global_config, checkpoint_dir, input_paths, K=None, local_regions=
         models = models_data.model_lib()
         pathlist = models.model_path_list
         namelist = models.model_name_list
-        random_index = np.random.choice(len(namelist))
-        print('asset_object_name:',namelist[random_index])
-        path = pathlist[random_index]
-        asset_path = path[:-10] + 'collision.obj'
-        
-        mesh = o3d.io.read_triangle_mesh(asset_path)
+        for i in range(len(namelist)):
 
-    # Sample points uniformly from the surface
-        pc_full =np.asarray( mesh.sample_points_uniformly(number_of_points=10000).points)
+            random_index = i
+            print('asset_object_name:',namelist[random_index])
+            obj_name  = namelist[random_index]
+            path = pathlist[random_index]
+            asset_path = path[:-10] + 'collision.obj'
+        
+            mesh = o3d.io.read_triangle_mesh(asset_path)
+
+        # Sample points uniformly from the surface
+            pc_full =np.asarray( mesh.sample_points_uniformly(number_of_points=10000).points)
     
         
         # if segmap is None and (local_regions or filter_grasps):
@@ -88,29 +93,42 @@ def inference(global_config, checkpoint_dir, input_paths, K=None, local_regions=
         #     pc_full, pc_segments, pc_colors = grasp_estimator.extract_point_clouds(depth, cam_K, segmap=segmap, rgb=rgb,
         #                                                                             skip_border_objects=skip_border_objects, z_range=z_range)
 
-        print('Generating Grasps...')
-        pred_grasps_cam, scores, contact_pts, _ = grasp_estimator.predict_scene_grasps(sess, pc_full, pc_segments=pc_segments, 
+            print('Generating Grasps...')
+            pred_grasps_cam, scores, contact_pts, _ = grasp_estimator.predict_scene_grasps(sess, pc_full, pc_segments=pc_segments, 
                                                                                           local_regions=local_regions, filter_grasps=filter_grasps, forward_passes=forward_passes)  
 
         # Save results
-        np.savez('results/predictions_{}'.format(os.path.basename(p.replace('png','npz').replace('npy','npz'))), 
-                  pred_grasps_cam=pred_grasps_cam, scores=scores, contact_pts=contact_pts)
+            # np.savez('results/predictions_{}'.format(os.path.basename(p.replace('png','npz').replace('npy','npz'))), 
+                #   pred_grasps_cam=pred_grasps_cam, scores=scores, contact_pts=contact_pts)
+            
 
         #select grasp
-        max_score_idx = np.argmax(scores[-1])
-        max_score_grasp ={-1: pred_grasps_cam[-1][max_score_idx,:,:].reshape(1,4,4)}
-       
-        pred_grasps_cam[-1]= np.identity(4).reshape(1,4,4)
+            if scores[-1].size == 0:
+                print('No grasps found')
+                grasp[obj_name] = 0
+                continue
+            max_score_idx = np.argmax(scores[-1])
+            max_score_grasp ={-1: pred_grasps_cam[-1][max_score_idx,:,:].reshape(1,4,4)}
+            grasp[obj_name] = max_score_grasp[-1]
+            # pred_grasps_cam[-1]= np.identity(4).reshape(1,4,4)
         # Visualize results          
         # show_image(rgb, segmap)
         # visualize_grasps(pc_full, pred_grasps_cam, scores, plot_opencv_cam=True, pc_colors=None)
-        visualize_grasps(pc_full, pred_grasps_cam, scores, plot_opencv_cam=True, pc_colors=None)
-        print('Max score grasp:', max_score_grasp)
-        print("Done")
-        
+            # visualize_grasps(pc_full, pred_grasps_cam, scores, plot_opencv_cam=True, pc_colors=None)
+            print('Max score grasp:', max_score_grasp)
+            print("Done")
+            # break
+
+
+        store_h5_dict(f'./results/grasp_YCB.h5',grasp)
     if not glob.glob(input_paths):
         print('No files found: ', input_paths)
-        
+
+def store_h5_dict(path, data_dict):
+    hf = h5py.File(path, 'w')
+    for k, v in data_dict.items():
+        hf.create_dataset(k, data=v)
+    hf.close()
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
