@@ -76,6 +76,8 @@ def inference(global_config, checkpoint_dir, input_paths, K=None, local_regions=
             random_index = i
             print('asset_object_name:',namelist[random_index])
             obj_name  = namelist[random_index]
+            # if obj_name !='medium_clamp':
+            #     continue
             path = pathlist[random_index]
             asset_path = path[:-10] + 'collision.obj'
         
@@ -114,13 +116,16 @@ def inference(global_config, checkpoint_dir, input_paths, K=None, local_regions=
         # Visualize results          
         # show_image(rgb, segmap)
         # visualize_grasps(pc_full, pred_grasps_cam, scores, plot_opencv_cam=True, pc_colors=None)
-            # visualize_grasps(pc_full, pred_grasps_cam, scores, plot_opencv_cam=True, pc_colors=None)
+            visualize_grasps(pc_full, max_score_grasp, scores, plot_opencv_cam=True, pc_colors=None)
             print('Max score grasp:', max_score_grasp)
             print("Done")
             # break
+        ['blue_plate','knife','plate_holder','gelatin_box','phillips_screwdriver','soap_dish',\
+        'plastic_orange','blue_marker','doraemon_plate','medium_clamp','remote_controller_1','cleanser'\
+        'two_color_hammer','clear_box_1','doraemon_bowl','suger_3','stapler_1','book_holder_3',]
 
 
-        store_h5_dict(f'./results/grasp_YCB.h5',grasp)
+        # store_h5_dict(f'./results/grasp_YCB.h5',grasp)
     if not glob.glob(input_paths):
         print('No files found: ', input_paths)
 
